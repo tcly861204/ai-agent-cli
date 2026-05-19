@@ -1,30 +1,46 @@
+/**
+ * REPL 内建命令模块
+ *
+ * 定义所有可通过 / 前缀调用的 REPL 命令。
+ * 每个命令注册为一个 Command 对象，包含描述、用法和处理函数。
+ * 通过 Map 集中管理，支持按名称查找和列出所有命令。
+ */
+
 import type { AgentRuntime } from '../agent/runtime';
 import type { ToolRegistry } from '../tool/registry';
 import type { Config } from '../types/config';
 import { colors } from './renderer';
 
+/**
+ * 命令处理器上下文
+ * 提供命令处理时需要的所有运行时依赖
+ */
 export interface CommandContext {
-  runtime: AgentRuntime;
-  tools: ToolRegistry;
-  config: Config;
-  setProvider: (name: string) => void;
-  setModel: (model: string) => void;
-  exit: () => void;
+  runtime: AgentRuntime;        // 代理运行时，用于管理对话
+  tools: ToolRegistry;          // 工具注册表，用于列出/管理工具
+  config: Config;               // 运行时配置（可修改）
+  setProvider: (name: string) => void;  // 切换 LLM 提供商
+  setModel: (model: string) => void;     // 切换模型
+  exit: () => void;             // 退出 REPL
 }
 
+/** 命令接口定义 */
 interface Command {
-  description: string;
-  usage: string;
-  handler: (args: string[], ctx: CommandContext) => void | Promise<void>;
+  description: string;          // 命令描述
+  usage: string;                // 用法说明
+  handler: (args: string[], ctx: CommandContext) => void | Promise<void>;  // 处理函数
 }
 
+/** 命令注册表 */
 const commands = new Map<string, Command>();
 
+// ====== 帮助命令 ======
 commands.set('help', {
-  description: 'Show available commands',
+  description: '显示所有可用命令',
   usage: '/help [command]',
   handler: (args, _ctx) => {
     if (args.length > 0) {
+      // 查看特定命令的帮助
       const cmd = commands.get(args[0]!);
       if (cmd) {
         console.log(`\n  ${colors.bold(args[0]!)}`);
@@ -36,6 +52,7 @@ commands.set('help', {
       return;
     }
 
+    // 列出所有命令
     console.log(colors.dim('\n  Available commands:'));
     for (const [name, cmd] of commands) {
       console.log(`  ${colors.cyan('/' + name.padEnd(12))} ${cmd.description}`);
@@ -44,31 +61,35 @@ commands.set('help', {
   },
 });
 
+// ====== 退出命令 ======
 commands.set('exit', {
-  description: 'Exit the REPL',
+  description: '退出 REPL',
   usage: '/exit',
   handler: (_args, ctx) => ctx.exit(),
 });
 
 commands.set('quit', {
-  description: 'Exit the REPL',
+  description: '退出 REPL',
   usage: '/quit',
   handler: (_args, ctx) => ctx.exit(),
 });
 
+// ====== 清屏命令 ======
 commands.set('clear', {
-  description: 'Clear screen',
+  description: '清空屏幕',
   usage: '/clear',
   handler: () => {
-    process.stdout.write('\x1b[2J\x1b[H');
+    process.stdout.write('\x1b[2J\x1b[H');  // ANSI 转义码：清屏 + 光标归位
   },
 });
 
+// ====== 模型切换命令 ======
 commands.set('model', {
-  description: 'Switch active model',
+  description: '切换当前使用的模型',
   usage: '/model <name>',
   handler: (args, ctx) => {
     if (args.length === 0) {
+      // 无参数时显示当前模型
       console.log(`  Current model: ${colors.yellow(ctx.config.model)}`);
       return;
     }
@@ -77,11 +98,13 @@ commands.set('model', {
   },
 });
 
+// ====== 提供商切换命令 ======
 commands.set('provider', {
-  description: 'Switch LLM provider (mock, anthropic, openai)',
+  description: '切换 LLM 提供商（mock / anthropic / openai）',
   usage: '/provider <name>',
   handler: (args, ctx) => {
     if (args.length === 0) {
+      // 无参数时显示当前提供商
       console.log(`  Current provider: ${colors.yellow(ctx.config.provider)}`);
       return;
     }
@@ -92,8 +115,9 @@ commands.set('provider', {
   },
 });
 
+// ====== 工具列表命令 ======
 commands.set('tools', {
-  description: 'List registered tools',
+  description: '列出所有已注册的工具',
   usage: '/tools',
   handler: (_args, ctx) => {
     const allTools = ctx.tools.getAll();
@@ -109,8 +133,9 @@ commands.set('tools', {
   },
 });
 
+// ====== 历史查看命令 ======
 commands.set('history', {
-  description: 'Show conversation history (last N turns)',
+  description: '查看对话历史（最近 N 轮）',
   usage: '/history [count]',
   handler: (args, ctx) => {
     const count = args.length > 0 ? Math.max(1, parseInt(args[0]!, 10)) : 10;
@@ -126,8 +151,9 @@ commands.set('history', {
   },
 });
 
+// ====== 重置对话命令 ======
 commands.set('reset', {
-  description: 'Clear conversation context',
+  description: '清空当前对话上下文',
   usage: '/reset',
   handler: (_args, ctx) => {
     ctx.runtime.reset();
@@ -135,8 +161,9 @@ commands.set('reset', {
   },
 });
 
+// ====== 查看配置命令 ======
 commands.set('config', {
-  description: 'Show current config',
+  description: '查看当前配置信息',
   usage: '/config',
   handler: (_args, ctx) => {
     console.log(colors.dim('\n  Current config:'));
@@ -154,18 +181,24 @@ commands.set('config', {
   },
 });
 
+// ====== 调试模式命令（占位） ======
 commands.set('debug', {
-  description: 'Toggle debug mode',
+  description: '切换调试模式',
   usage: '/debug',
   handler: () => {
     console.log(colors.yellow('  Debug mode not yet implemented.'));
   },
 });
 
+/**
+ * 根据名称获取注册的命令
+ * @param name - 命令名（不包含斜杠）
+ */
 export function getCommand(name: string): Command | undefined {
   return commands.get(name);
 }
 
+/** 获取所有已注册的命令 */
 export function getAllCommands(): Map<string, Command> {
   return commands;
 }
