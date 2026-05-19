@@ -1,4 +1,4 @@
-# ai-agent-cli 🚀
+# 🚀 ai-agent-cli
 
 一个可扩展的 AI 代理命令行工具，支持多种 LLM 提供商（Anthropic Claude、OpenAI）和工具调用系统。
 
