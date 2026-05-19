@@ -96,6 +96,13 @@ async function runPipedMode(deps: ReplDependencies): Promise<void> {
 /**
  * 交互式 REPL 模式：完整的终端交互界面
  *
+ * 使用 while 循环 + 会话(Promise)模式替代简单的 readline 事件驱动，
+ * 核心原因是 Bun 在 Windows 平台上会在处理完第一行输入后让 stdin
+ * 意外 emit 'end' → readline 'close' → 进程退出。
+ *
+ * 解决方案：每次 readline 意外关闭时，由外层 while 循环重建一个
+ * 全新的 readline 会话，保持 REPL 持续运作。
+ *
  * 功能特性：
  * - readline 行编辑
  * - 命令历史持久化到文件
@@ -106,35 +113,18 @@ async function runPipedMode(deps: ReplDependencies): Promise<void> {
 async function runInteractiveMode(deps: ReplDependencies): Promise<void> {
   const { runtime, tools, config, setProvider, setModel } = deps;
 
-  // 创建 readline 接口
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: renderPrompt(config.provider),  // 动态提示符（显示提供商名）
-    historySize: 100,                        // 记录最近 100 条历史
-  });
-
-  // ---- 历史持久化到文件 ----
+  // 初始化历史文件访问（共用的 I/O 需要等 fs/path 加载）
   const fs = await import('node:fs');
   const path = await import('node:path');
   const historyDir = path.join(require('os').homedir(), '.ai-agent');
   const historyFile = path.join(historyDir, 'history');
 
   try {
-    // 确保历史目录存在
     if (!fs.existsSync(historyDir)) {
       fs.mkdirSync(historyDir, { recursive: true });
     }
-    // 加载历史文件到 readline 历史
-    if (fs.existsSync(historyFile)) {
-      const lines = fs.readFileSync(historyFile, 'utf-8').split('\n').filter(Boolean);
-      const prev = (rl as any)._previousValues;
-      if (prev && Array.isArray(prev)) {
-        prev.push(...lines.slice(-100));
-      }
-    }
   } catch {
-    // 历史持久化是锦上添花的功能，失败时静默忽略
+    // best-effort
   }
 
   /** 将输入保存到历史文件 */
@@ -146,108 +136,169 @@ async function runInteractiveMode(deps: ReplDependencies): Promise<void> {
     }
   }
 
-  // ---- 运行状态 ----
-  let running = false;                        // 是否正在处理 LLM 请求
-  let abortController = new AbortController(); // 用于中断当前请求
-
-  // 命令处理上下文
-  const cmdCtx: CommandContext = {
-    runtime,
-    tools,
-    config,
-    setProvider,
-    setModel,
-    exit: () => rl.close(),
-  };
-
-  // 显示欢迎信息并显示提示符
-  renderWelcome();
-  rl.prompt();
-
-  // ---- 行输入事件处理 ----
-  rl.on('line', async (line: string) => {
-    // 正在处理请求时忽略新输入
-    if (running) return;
-
-    const parsed = parseInput(line);
-
-    switch (parsed.type) {
-      case 'empty':
-        // 空输入：重新显示提示符
-        rl.prompt();
-        return;
-
-      case 'command': {
-        // 执行内建命令
-        const cmd = getCommand(parsed.command);
-        if (cmd) {
-          try {
-            await cmd.handler(parsed.args, cmdCtx);
-          } catch (err) {
-            console.error(colors.red(`  Command error: ${err}`));
-          }
-        } else {
-          console.log(colors.red(`  Unknown command: /${parsed.command}. Type /help for commands.`));
-        }
-        rl.prompt();
-        return;
+  /** 加载历史文件内容 */
+  function loadHistory(): string[] {
+    try {
+      if (fs.existsSync(historyFile)) {
+        return fs.readFileSync(historyFile, 'utf-8').split('\n').filter(Boolean);
       }
-
-      case 'message':
-      case 'multiline': {
-        // 处理普通消息/多行消息
-        running = true;
-        abortController = new AbortController();  // 创建新的取消控制器
-        saveHistory(parsed.text);                  // 保存到历史文件
-
-        // 启动旋转器
-        const spinner = new Spinner();
-        spinner.start('  ', colors.dim('thinking...'));
-
-        try {
-          // 遍历运行时事件流
-          for await (const event of runtime.run(parsed.text, abortController.signal)) {
-            // 收到第一个事件后立即停止旋转器
-            spinner.stop();
-            renderEvent(event, config.ui.showToolOutput);
-          }
-        } catch (err) {
-          spinner.stop();
-          if (err instanceof Error && err.name === 'AbortError') {
-            console.log(colors.yellow('\n  Cancelled.'));
-          } else {
-            console.error(colors.red(`\n  Error: ${err}`));
-          }
-        }
-
-        running = false;
-        rl.prompt();
-        return;
-      }
+    } catch {
+      // best-effort
     }
-  });
+    return [];
+  }
 
-  // ---- SIGINT (Ctrl+C) 处理 ----
-  rl.on('SIGINT', () => {
-    if (running) {
-      // 正在处理请求：中断当前 LLM 调用
-      abortController.abort();
-      console.log(colors.yellow('\n  Aborting...'));
-    } else {
-      // 空闲状态：询问是否退出
-      rl.question(colors.dim('\n  Exit? (y/N) '), (answer: string) => {
-        if (answer.toLowerCase() === 'y') {
+  // 确保 stdin 持续处于 flowing 模式（Windows + Bun 核心兼容）
+  process.stdin.resume();
+
+  // ---- 外层循环：readline 会话意外关闭时自动重建 ----
+  let closeRequested = false;
+  let welcomeShown = false;
+
+  while (!closeRequested) {
+    closeRequested = await runReplSession();
+    welcomeShown = true;
+  }
+
+  // ---- 子函数：单个 readline 会话 ----
+  // 返回 true=正常退出, false=意外关闭需要重建
+  async function runReplSession(): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+      // ---- 创建 readline 接口 ----
+      const rl = readline.createInterface({
+        input: process.stdin,
+        output: process.stdout,
+        prompt: renderPrompt(config.provider),
+        historySize: 100,
+      });
+
+      // 加载历史到 readline
+      try {
+        const lines = loadHistory();
+        const prev = (rl as any)._previousValues;
+        if (prev && Array.isArray(prev)) {
+          prev.push(...lines.slice(-100));
+        }
+      } catch {
+        // best-effort
+      }
+
+      // ---- 会话状态 ----
+      let sessionExitRequested = false;       // 本会话是否主动请求退出
+      let running = false;                    // 是否正在处理 LLM 请求
+      let abortController = new AbortController();
+
+      // ---- 命令处理上下文 ----
+      const cmdCtx: CommandContext = {
+        runtime, tools, config, setProvider, setModel,
+        exit: () => {
+          sessionExitRequested = true;
+          closeRequested = true;
           rl.close();
-        } else {
-          rl.prompt();
+        },
+      };
+
+      // 只在首次显示欢迎
+      if (!welcomeShown) {
+        renderWelcome();
+      }
+      rl.prompt();
+
+      // ---- 行输入事件处理 ----
+      rl.on('line', async (line: string) => {
+        if (running) return;
+
+        const parsed = parseInput(line);
+
+        switch (parsed.type) {
+          case 'empty':
+            rl.prompt();
+            return;
+
+          case 'command': {
+            const cmd = getCommand(parsed.command);
+            if (cmd) {
+              try {
+                await cmd.handler(parsed.args, cmdCtx);
+              } catch (err) {
+                console.error(colors.red(`  Command error: ${err}`));
+              }
+            } else {
+              console.log(colors.red(`  Unknown command: /${parsed.command}. Type /help for commands.`));
+            }
+            rl.prompt();
+            return;
+          }
+
+          case 'message':
+          case 'multiline': {
+            running = true;
+            abortController = new AbortController();
+            saveHistory(parsed.text);
+
+            const spinner = new Spinner();
+            spinner.start('  ', colors.dim('thinking...'));
+            let spinnerActive = true;
+
+            try {
+              for await (const event of runtime.run(parsed.text, abortController.signal)) {
+                // 只在第一个事件时关闭 spinner，防后续 text_delta 被 \r\x1b[K 清除
+                if (spinnerActive) {
+                  spinner.stop();
+                  spinnerActive = false;
+                }
+                renderEvent(event, config.ui.showToolOutput);
+              }
+            } catch (err) {
+              if (spinnerActive) {
+                spinner.stop();
+                spinnerActive = false;
+              }
+              if (err instanceof Error && err.name === 'AbortError') {
+                console.log(colors.yellow('\n  Cancelled.'));
+              } else {
+                console.error(colors.red(`\n  Error: ${err}`));
+              }
+            }
+
+            running = false;
+            // 保持 stdin 持续 flowing（Windows + Bun 兼容关键）
+            process.stdin.resume();
+            rl.prompt();
+            return;
+          }
         }
       });
-    }
-  });
 
-  // ---- REPL 关闭事件 ----
-  rl.on('close', () => {
-    console.log(colors.dim('\n  Goodbye!\n'));
-    process.exit(0);
-  });
+      // ---- SIGINT (Ctrl+C) ----
+      rl.on('SIGINT', () => {
+        if (running) {
+          abortController.abort();
+          console.log(colors.yellow('\n  Aborting...'));
+        } else {
+          rl.question(colors.dim('\n  Exit? (y/N) '), (answer: string) => {
+            if (answer.toLowerCase() === 'y') {
+              sessionExitRequested = true;
+              closeRequested = true;
+              rl.close();
+            } else {
+              rl.prompt();
+            }
+          });
+        }
+      });
+
+      // ---- REPL 关闭事件（关键修复点） ----
+      rl.on('close', () => {
+        if (sessionExitRequested) {
+          // 主动退出：结束外层循环
+          console.log(colors.dim('\n  Goodbye!\n'));
+          resolve(true);
+        } else {
+          // 意外关闭（Bun/Windows stdin 兼容问题）：重建会话
+          resolve(false);
+        }
+      });
+    });
+  }
 }

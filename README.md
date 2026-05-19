@@ -60,11 +60,14 @@ bun run src/index.ts --query "你的问题" -p deepseek
 
 ```json
 {
-  "provider": "anthropic",
-  "model": "claude-sonnet-4-20250514",
-  "systemPrompt": "You are a helpful AI assistant.",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "systemPrompt": "你是一个专业的助手，能够回答用户的问题。",
   "maxTokens": 4096,
-  "temperature": 0.7
+  "temperature": 0.7,
+  "apiKeys": {
+    "deepseek": "sk-xxxx"
+  }
 }
 ```
 
