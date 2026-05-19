@@ -2,6 +2,12 @@
   "name": "ai-agent-cli",
   "module": "src/index.ts",
   "type": "module",
+  "scripts": {
+    "dev": "bun run ./src/index.ts",
+    "compile:win64": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli.exe --target bun-windows-x64",
+    "compile:win32": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli-x86.exe --target bun-windows-x64-baseline",
+    "compile:mac": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli-macos --target bun-darwin-x64"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
