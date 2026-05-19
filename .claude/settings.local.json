@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(bun *)",
+      "PowerShell(bun run *)"
+    ]
+  }
+}
