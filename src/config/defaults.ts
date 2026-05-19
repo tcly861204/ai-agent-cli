@@ -9,6 +9,7 @@ export const defaultConfig: Config = {
   // ---- LLM 基础配置 ----
   provider: 'anthropic',                         // 默认使用 Anthropic Claude
   model: 'claude-sonnet-4-20250514',             // 默认模型
+  apiBase: undefined,                             // API 端点覆盖（仅 OpenAI 兼容）
   apiKeys: {},                                    // API 密钥默认为空，需通过配置文件或环境变量提供
   systemPrompt:
     'You are a helpful AI assistant with access to tools. ' +

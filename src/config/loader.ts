@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'fs';
 import { homedir } from 'os';
 import { resolve } from 'path';
-import { ConfigSchema, type ValidatedConfig } from './schema';
+import { ConfigSchema } from './schema';
 import { defaultConfig } from './defaults';
 import type { Config } from '../types';
 
@@ -32,12 +32,14 @@ function envOverrides(): Partial<Config> {
   // 读取各 API 密钥环境变量
   if (process.env.ANTHROPIC_API_KEY) apiKeys.anthropic = process.env.ANTHROPIC_API_KEY;
   if (process.env.OPENAI_API_KEY) apiKeys.openai = process.env.OPENAI_API_KEY;
+  if (process.env.DEEPSEEK_API_KEY) apiKeys.deepseek = process.env.DEEPSEEK_API_KEY;
   if (process.env.TAVILY_API_KEY) apiKeys.tavily = process.env.TAVILY_API_KEY;
   if (Object.keys(apiKeys).length > 0) overrides.apiKeys = apiKeys as Config['apiKeys'];
 
   // AI Agent 专属配置
   if (process.env.AI_AGENT_PROVIDER) overrides.provider = process.env.AI_AGENT_PROVIDER;
   if (process.env.AI_AGENT_MODEL) overrides.model = process.env.AI_AGENT_MODEL;
+  if (process.env.AI_AGENT_API_BASE) overrides.apiBase = process.env.AI_AGENT_API_BASE;
 
   return overrides;
 }

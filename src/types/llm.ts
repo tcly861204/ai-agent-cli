@@ -2,7 +2,7 @@ import type { AgentMessage, ContentBlock } from './agent';
 
 /**
  * LLM 提供商接口
- * 所有 LLM 提供商（Anthropic、OpenAI、Mock）必须实现此接口
+ * 所有 LLM 提供商（如 DeepSeek、Anthropic、OpenAI）必须实现此接口
  * 提供流式和非流式两种生成方式
  */
 export interface LLMProvider {

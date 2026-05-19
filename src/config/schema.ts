@@ -8,17 +8,21 @@ import { z } from 'zod';
  * 每个字段都设置了默认值，确保即使配置不完整也能正常运行
  */
 export const ConfigSchema = z.object({
-  // LLM 提供商名称（mock / anthropic / openai）
+  // LLM 提供商名称（deepseek / anthropic / openai）
   provider: z.string().default('anthropic'),
 
-  // 模型名称（如 claude-sonnet-4-20250514、gpt-4o）
+  // 模型名称（如 claude-sonnet-4-20250514、gpt-4o、deepseek-chat）
   model: z.string().default('claude-sonnet-4-20250514'),
+
+  // 自定义 API 基础 URL（仅 OpenAI 兼容协议使用）
+  apiBase: z.string().optional(),
 
   // API 密钥集合，各字段均为可选
   apiKeys: z
     .object({
       anthropic: z.string().optional(),    // Anthropic API 密钥
       openai: z.string().optional(),       // OpenAI API 密钥
+      deepseek: z.string().optional(),     // DeepSeek API 密钥
       tavily: z.string().optional(),       // Tavily 搜索 API 密钥
     })
     .optional()

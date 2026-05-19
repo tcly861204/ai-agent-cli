@@ -1,12 +1,17 @@
 {
   "name": "ai-agent-cli",
+  "version": "0.1.0",
   "module": "src/index.ts",
   "type": "module",
+  "bin": {
+    "ai-agent-cli": "./src/index.ts"
+  },
   "scripts": {
     "dev": "bun run ./src/index.ts",
     "compile:win64": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli.exe --target bun-windows-x64",
     "compile:win32": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli-x86.exe --target bun-windows-x64-baseline",
-    "compile:mac": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli-macos --target bun-darwin-x64"
+    "compile:mac": "bun build --compile ./src/index.ts --outfile ./dist/ai-agent-cli-macos --target bun-darwin-x64",
+    "compile:all": "bun run compile:win64 && bun run compile:win32 && bun run compile:mac"
   },
   "devDependencies": {
     "@types/bun": "latest"

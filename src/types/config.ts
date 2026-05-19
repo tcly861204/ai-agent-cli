@@ -18,16 +18,20 @@ export interface McpServerConfig {
  * 定义整个 CLI 工具的所有可配置项
  */
 export interface Config {
-  /** LLM 提供商名称：mock、anthropic 或 openai */
+  /** LLM 提供商名称：deepseek、anthropic、openai */
   provider: string;
   /** 使用的模型名称 */
   model: string;
+  /** 自定义 API 基础 URL（仅 OpenAI 兼容协议），覆盖默认端点 */
+  apiBase?: string;
   /** 各服务商的 API 密钥 */
   apiKeys: {
     /** Anthropic Claude API 密钥 */
     anthropic?: string;
     /** OpenAI API 密钥 */
     openai?: string;
+    /** DeepSeek API 密钥 */
+    deepseek?: string;
     /** Tavily 搜索 API 密钥 */
     tavily?: string;
   };

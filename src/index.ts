@@ -3,21 +3,17 @@
 /**
  * AI Agent CLI - 主入口
  *
- * 一个可扩展的 AI 代理命令行工具，支持多种 LLM 提供商（Anthropic Claude、OpenAI）
- * 和工具调用系统。当前处于 Phase 1 开发阶段，使用 MockProvider 模拟 LLM 响应。
+ * 一个可扩展的 AI 代理命令行工具，支持多种 LLM 提供商
+ * （DeepSeek、Anthropic Claude、OpenAI）和工具调用系统。
  *
  * 启动流程：
- * 1. 加载配置（配置文件 + 环境变量）
- * 2. 检查 API 密钥，缺失时自动降级到 mock 模式
- * 3. 创建 LLM 提供商实例
- * 4. 注册内建工具（如 think）
- * 5. 实例化 AgentRuntime
- * 6. 根据命令行参数选择一次性模式或交互式 REPL
- *
- * 开发阶段：
- * - Phase 1: Mock 模式 + REPL + 代理循环（当前）
- * - Phase 2: Anthropic Claude API 集成
- * - Phase 3: OpenAI API 集成
+ * 1. 解析命令行参数
+ * 2. 加载配置（配置文件 + 环境变量 + CLI 标志）
+ * 3. 检查 API 密钥，缺失时报错
+ * 4. 创建 LLM 提供商实例
+ * 5. 注册内建工具
+ * 6. 实例化 AgentRuntime
+ * 7. 根据命令行参数选择一次性模式或交互式 REPL
  */
 
 import { loadConfig } from './config/loader';
@@ -28,20 +24,48 @@ import { startRepl } from './cli/repl';
 import { thinkTool } from './tool/builtins/think';
 import { readFileTool } from './tool/builtins/readFile';
 import { writeFileTool } from './tool/builtins/writeFile';
+import { shellTool } from './tool/builtins/shell';
+import { parseArgs, printHelp, printVersion } from './cli/args';
 import type { Config } from './types/config';
 
 /**
  * 主函数
- * 初始化所有组件并启动 REPL
+ * 解析参数、初始化组件、启动 REPL 或执行一次性查询
  */
 async function main() {
-  const config: Config = loadConfig();
+  // ---- 1. 解析命令行参数 ----
+  const args = parseArgs(process.argv.slice(2));
+
+  // 优先处理 --help 和 --version
+  if (args.help) {
+    printHelp();
+    process.exit(0);
+  }
+  if (args.version) {
+    printVersion();
+    process.exit(0);
+  }
+
+  // ---- 2. 加载配置 ----
+  const config: Config = loadConfig(args.config);
+
+  // CLI 标志覆盖配置中的 provider / model
+  if (args.provider) config.provider = args.provider;
+  if (args.model) config.model = args.model;
 
   // 检查已配置的提供商是否有对应的 API 密钥
-  // 如果没有，自动降级到 mock 提供商的模拟模式
-  const needsKey = config.provider === 'anthropic' ? 'anthropic' : 'openai';
-  if (!config.apiKeys[needsKey]) {
-    config.provider = 'mock';
+  const keyMap: Record<string, keyof typeof config.apiKeys> = {
+    anthropic: 'anthropic',
+    openai: 'openai',
+    deepseek: 'deepseek',
+  };
+  const needsKey = keyMap[config.provider];
+  if (needsKey && !config.apiKeys[needsKey]) {
+    const envVar = needsKey === 'anthropic' ? 'ANTHROPIC_API_KEY'
+      : needsKey === 'deepseek' ? 'DEEPSEEK_API_KEY'
+      : 'OPENAI_API_KEY';
+    console.error(`Error: Provider "${config.provider}" requires ${envVar} to be set.`);
+    process.exit(1);
   }
 
   // 创建 LLM 提供商
@@ -62,13 +86,12 @@ async function main() {
     config.model = model;
   };
 
-  // ---- 一次性模式 ----
-  // 如果提供了命令行参数，则执行一次性对话后退出
-  const args = process.argv.slice(2);
-  if (args.length > 0) {
-    const text = args.join(' ');
-    console.log(`  ${text}\n`);
-    for await (const event of runtime.run(text)) {
+  // ---- 3. 一次性模式 ----
+  // 取 --query 或位置参数作为查询文本
+  const queryText = args.query ?? args.positional.join(' ');
+  if (queryText.length > 0) {
+    console.log(`  ${queryText}\n`);
+    for await (const event of runtime.run(queryText)) {
       if (event.type === 'text') {
         console.log(event.content);
       }
@@ -76,8 +99,7 @@ async function main() {
     process.exit(0);
   }
 
-  // ---- 交互式 REPL 模式 ----
-  // 默认模式：启动交互式命令行界面
+  // ---- 4. 交互式 REPL 模式 ----
   await startRepl({ runtime, tools, config, setProvider, setModel });
 }
 
@@ -91,6 +113,7 @@ function registerDefaultTools(tools: ToolRegistry): void {
   tools.register(thinkTool);     // "思考"工具，帮助 LLM 进行分步推理
   tools.register(readFileTool);  // "读取文件"工具
   tools.register(writeFileTool); // "写入文件"工具
+  tools.register(shellTool);     // "命令行"工具，执行 Shell 命令
 }
 
 main().catch((err) => {

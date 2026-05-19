@@ -1,7 +1,7 @@
 /**
  * LLM 提供商接口与类型定义
  *
- * 本文件定义了 LLM 提供商（如 Anthropic、OpenAI、Mock）需要实现的接口，
+ * 本文件定义了 LLM 提供商（如 DeepSeek、Anthropic、OpenAI）需要实现的接口，
  * 以及生成请求/响应相关的类型。所有 LLM 交互都通过这些类型进行标准化。
  */
 
@@ -63,7 +63,7 @@ export interface StreamChunk {
  * - generateStream：流式，逐块获取生成内容
  */
 export interface LLMProvider {
-  /** 提供商名称，如 "anthropic"、"openai"、"mock" */
+  /** 提供商名称，如 "deepseek"、"anthropic"、"openai" */
   readonly name: string;
   /** 当前使用的模型名称 */
   readonly model: string;

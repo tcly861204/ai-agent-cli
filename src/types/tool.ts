@@ -34,6 +34,8 @@ export interface ToolResult {
     durationMs?: number;
     /** 输出是否被截断 */
     truncated?: boolean;
+    /** 命令退出码（shell 工具使用） */
+    exitCode?: number;
     /** MCP 服务器 ID（如果由 MCP 工具执行） */
     mcpServerId?: string;
   };

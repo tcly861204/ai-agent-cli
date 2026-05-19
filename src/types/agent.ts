@@ -57,7 +57,7 @@ import type { ToolResult } from './tool';
  * 控制 LLM 的基本行为参数
  */
 export interface AgentConfig {
-  /** LLM 提供商名称（如 anthropic, openai, mock） */
+  /** LLM 提供商名称（如 deepseek, anthropic, openai） */
   provider: string;
   /** 模型名称（如 claude-sonnet-4-20250514） */
   model: string;

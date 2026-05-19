@@ -100,7 +100,7 @@ commands.set('model', {
 
 // ====== 提供商切换命令 ======
 commands.set('provider', {
-  description: '切换 LLM 提供商（mock / anthropic / openai）',
+  description: '切换 LLM 提供商（deepseek / anthropic / openai）',
   usage: '/provider <name>',
   handler: (args, ctx) => {
     if (args.length === 0) {
@@ -172,7 +172,7 @@ commands.set('config', {
     console.log(`  ${colors.bold('Max tokens:')}  ${ctx.config.maxTokens}`);
     console.log(`  ${colors.bold('Temp:')}        ${ctx.config.temperature}`);
     console.log(
-      `  ${colors.bold('API Keys:')}   anthropic=${ctx.config.apiKeys.anthropic ? '✓' : '✗'} openai=${ctx.config.apiKeys.openai ? '✓' : '✗'}`,
+      `  ${colors.bold('API Keys:')}   anthropic=${ctx.config.apiKeys.anthropic ? '✓' : '✗'} openai=${ctx.config.apiKeys.openai ? '✓' : '✗'} deepseek=${ctx.config.apiKeys.deepseek ? '✓' : '✗'}`,
     );
     console.log(
       `  ${colors.bold('MCP servers:')} ${ctx.config.mcpServers.length}`,
