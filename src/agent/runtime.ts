@@ -114,9 +114,8 @@ export class AgentRuntime {
             // 流式模式下的工具调用处理较复杂，回退到非流式路径
             yield* this.handleToolUse(accumulatedText, signal);
           } else {
-            // 正常结束：将累积的响应保存到消息历史
+            // 正常结束：内容已通过 text_delta 流式输出，不再重复 yield text
             this.messages.push({ role: 'assistant', content: accumulatedText });
-            yield { type: 'text', content: accumulatedText };
           }
           yield { type: 'done' };
           return;

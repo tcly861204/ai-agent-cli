@@ -262,6 +262,9 @@ async function runInteractiveMode(deps: ReplDependencies): Promise<void> {
             }
 
             running = false;
+            // 流式文本以 text_delta 输出时不带换行，短回答后光标还在原行。
+            // 不加此换行，rl.prompt() 的 \r 回车会覆盖短回答文本。
+            process.stdout.write('\n');
             // 保持 stdin 持续 flowing（Windows + Bun 兼容关键）
             process.stdin.resume();
             rl.prompt();

@@ -51,11 +51,15 @@ export function renderEvent(event: AgentEvent, showToolOutput: boolean): void {
       break;
 
     case 'tool_start':
+      // 内置 think 工具不显示，避免干扰阅读流
+      if (event.name === 'think') break;
       // 工具开始执行：显示齿轮图标 + 工具名
       console.log(colors.cyan(`  ⚙  ${event.name}...`));
       break;
 
     case 'tool_end': {
+      // 内置 think 工具不显示
+      if (event.name === 'think') break;
       const duration = event.result.metadata?.durationMs;
       const timeStr = duration ? ` (${duration}ms)` : '';
       if (event.result.success) {
