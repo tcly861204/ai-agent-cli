@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "PowerShell(bun *)",
-      "PowerShell(bun run *)"
+      "PowerShell(bun run *)",
+      "PowerShell(bun build *)"
     ]
   }
 }

@@ -25,6 +25,10 @@ import { thinkTool } from './tool/builtins/think';
 import { readFileTool } from './tool/builtins/readFile';
 import { writeFileTool } from './tool/builtins/writeFile';
 import { shellTool } from './tool/builtins/shell';
+import { globTool } from './tool/builtins/glob';
+import { grepTool } from './tool/builtins/grep';
+import { editTool } from './tool/builtins/edit';
+import { listDirTool } from './tool/builtins/listDir';
 import { parseArgs, printHelp, printVersion } from './cli/args';
 import type { Config } from './types/config';
 
@@ -114,6 +118,10 @@ function registerDefaultTools(tools: ToolRegistry): void {
   tools.register(readFileTool);  // "读取文件"工具
   tools.register(writeFileTool); // "写入文件"工具
   tools.register(shellTool);     // "命令行"工具，执行 Shell 命令
+  tools.register(globTool);      // "文件搜索"工具，按 glob 模式查找文件
+  tools.register(grepTool);      // "内容搜索"工具，按正则搜索文件内容
+  tools.register(editTool);      // "编辑文件"工具，精确 search & replace
+  tools.register(listDirTool);   // "目录列表"工具，浏览目录结构
 }
 
 main().catch((err) => {
